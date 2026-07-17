@@ -1,18 +1,21 @@
 import Link from 'next/link';
 import EmptyState from './EmptyState';
 import {
-  Expense,
+  type Expense,
+  type Member,
   formatCents,
   formatDate,
   memberById,
   memberName,
-} from '@/lib/mockData';
+} from '@/lib/view';
 
 export default function ExpenseList({
   expenses,
+  members,
   emptyTestId = 'expenses-empty',
 }: {
   expenses: Expense[];
+  members: Member[];
   emptyTestId?: string;
 }) {
   if (expenses.length === 0) {
@@ -31,7 +34,7 @@ export default function ExpenseList({
   return (
     <ul className="card" data-testid="expense-list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       {expenses.map((e) => {
-        const payer = memberById(e.payerId);
+        const payer = memberById(members, e.payerId);
         return (
           <li key={e.id}>
             <Link href={`/expenses/${e.id}`} className="expense-row">
@@ -39,7 +42,7 @@ export default function ExpenseList({
               <span className="body">
                 <span className="desc">{e.description}</span>
                 <span className="meta">
-                  {memberName(e.payerId)} paid · {formatDate(e.createdAt)}
+                  {memberName(members, e.payerId)} paid · {formatDate(e.createdAt)}
                 </span>
               </span>
               <span className="right">

@@ -1,19 +1,20 @@
 import {
-  Balances,
-  Member,
-  CURRENT_USER_ID,
+  type Balances,
+  type Member,
   formatCents,
   memberName,
-} from '@/lib/mockData';
+} from '@/lib/view';
 
 export default function BalancesSection({
   balances,
   members,
+  currentUserId,
 }: {
   balances: Balances;
   members: Member[];
+  currentUserId: string;
 }) {
-  const myNet = balances.net[CURRENT_USER_ID] ?? 0;
+  const myNet = balances.net[currentUserId] ?? 0;
   const heroLabel =
     myNet > 0 ? 'You are owed' : myNet < 0 ? 'You owe' : 'You are settled up';
 
@@ -47,7 +48,7 @@ export default function BalancesSection({
             <div key={m.id} className="member-net">
               <span className="avatar sm" aria-hidden>{m.initials}</span>
               <span className="who">
-                {m.name}{m.id === CURRENT_USER_ID ? ' (you)' : ''}
+                {m.name}{m.id === currentUserId ? ' (you)' : ''}
               </span>
               <span className={`amt ${cls}`}>{label}</span>
             </div>
@@ -64,8 +65,8 @@ export default function BalancesSection({
         ) : (
           balances.pairwise.map((p, i) => (
             <div key={i} className="owes-row">
-              <span className="avatar sm" aria-hidden>{memberName(p.fromId).slice(0, 1)}</span>
-              <span><b>{memberName(p.fromId)}</b> <span className="arrow">owes</span> <b>{memberName(p.toId)}</b></span>
+              <span className="avatar sm" aria-hidden>{memberName(members, p.fromId).slice(0, 1)}</span>
+              <span><b>{memberName(members, p.fromId)}</b> <span className="arrow">owes</span> <b>{memberName(members, p.toId)}</b></span>
               <span className="amt">{formatCents(p.amountCents)}</span>
             </div>
           ))

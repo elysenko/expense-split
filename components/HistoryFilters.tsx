@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MEMBERS } from '@/lib/mockData';
+import type { Member } from '@/lib/view';
 
 // Filters are URL-bound: selections are serialized to the query string so a
 // reload (or a shared/bookmarked link) reproduces the exact filtered view.
-export default function HistoryFilters() {
+export default function HistoryFilters({ members }: { members: Member[] }) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -32,7 +32,7 @@ export default function HistoryFilters() {
           <select id="f-member" className="input" data-testid="filter-member"
             value={member} onChange={(e) => update('member', e.target.value)}>
             <option value="">Everyone</option>
-            {MEMBERS.map((m) => (
+            {members.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>

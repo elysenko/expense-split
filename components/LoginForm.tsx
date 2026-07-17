@@ -8,16 +8,33 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
   const [email, setEmail] = useState(admin ? 'admin@example.com' : 'alex@example.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Enter your email and password.');
       return;
     }
-    // Mockup: real app POSTs to /api/auth/login, sets the session cookie,
-    // and redirects to the returned target.
-    router.push(admin ? '/admin/settings' : '/dashboard');
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaving(false);
+        return setError(data.error || 'Could not log you in.');
+      }
+      router.push(admin ? '/admin/settings' : data.redirect || '/dashboard');
+      router.refresh();
+    } catch {
+      setSaving(false);
+      setError('Could not log you in.');
+    }
   };
 
   return (
@@ -34,8 +51,8 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           data-testid="login-password" value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••" />
       </div>
-      <button type="submit" className="btn primary block" data-testid="login-submit">
-        {admin ? 'Sign in as admin' : 'Log in'}
+      <button type="submit" className="btn primary block" data-testid="login-submit" disabled={saving}>
+        {saving ? 'Signing in…' : admin ? 'Sign in as admin' : 'Log in'}
       </button>
     </form>
   );

@@ -2,23 +2,51 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS, CURRENT_USER_ID } from '@/lib/mockData';
+import type { Member } from '@/lib/view';
 
-export default function SettleUpModal() {
+export default function SettleUpModal({
+  members,
+  currentUserId,
+}: {
+  members: Member[];
+  currentUserId: string;
+}) {
   const router = useRouter();
-  const [fromId, setFromId] = useState(CURRENT_USER_ID);
-  const [toId, setToId] = useState(MEMBERS.find((m) => m.id !== CURRENT_USER_ID)?.id ?? '');
+  const [fromId, setFromId] = useState(currentUserId);
+  const [toId, setToId] = useState(members.find((m) => m.id !== currentUserId)?.id ?? '');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const close = () => router.push('/dashboard');
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (fromId === toId) return setError('Pick two different people.');
     if (!(Number(amount) > 0)) return setError('Enter an amount greater than $0.');
-    // Mockup: no persistence — real app POSTs to /api/settlements then router.refresh().
-    close();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/settlements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromUserId: fromId,
+          toUserId: toId,
+          amountCents: Math.round(Number(amount) * 100),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaving(false);
+        return setError(data.error || 'Could not record the payment.');
+      }
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      setSaving(false);
+      setError('Could not record the payment.');
+    }
   };
 
   return (
@@ -35,8 +63,8 @@ export default function SettleUpModal() {
             <label htmlFor="su-from">From (payer)</label>
             <select id="su-from" className="input" data-testid="settle-from"
               value={fromId} onChange={(e) => setFromId(e.target.value)}>
-              {MEMBERS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}{m.id === CURRENT_USER_ID ? ' (you)' : ''}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}{m.id === currentUserId ? ' (you)' : ''}</option>
               ))}
             </select>
           </div>
@@ -44,8 +72,8 @@ export default function SettleUpModal() {
             <label htmlFor="su-to">To (recipient)</label>
             <select id="su-to" className="input" data-testid="settle-to"
               value={toId} onChange={(e) => setToId(e.target.value)}>
-              {MEMBERS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}{m.id === CURRENT_USER_ID ? ' (you)' : ''}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}{m.id === currentUserId ? ' (you)' : ''}</option>
               ))}
             </select>
           </div>
@@ -56,8 +84,8 @@ export default function SettleUpModal() {
               value={amount} onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00" />
           </div>
-          <button type="submit" className="btn primary block" data-testid="settle-submit">
-            Record payment
+          <button type="submit" className="btn primary block" data-testid="settle-submit" disabled={saving}>
+            {saving ? 'Recording…' : 'Record payment'}
           </button>
         </form>
       </div>

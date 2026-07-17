@@ -10,21 +10,56 @@ export default function OnboardingForms() {
   const [code, setCode] = useState('');
   const [createdCode, setCreatedCode] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const create = (e: React.FormEvent) => {
+  const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Give your household a name.');
+    setSaving(true);
     setError('');
-    // Mockup: real app POSTs /api/households and returns the generated code.
-    setCreatedCode('MAPLE-' + (1000 + name.length * 37).toString().slice(0, 4));
+    try {
+      const res = await fetch('/api/households', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (!res.ok) return setError(data.error || 'Could not create the household.');
+      setCreatedCode(data.household?.joinCode || '');
+    } catch {
+      setSaving(false);
+      setError('Could not create the household.');
+    }
   };
 
-  const join = (e: React.FormEvent) => {
+  const join = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim()) return setError('Enter the join code your roommate shared.');
+    setSaving(true);
     setError('');
-    // Mockup: real app POSTs /api/households/join then redirects.
+    try {
+      const res = await fetch('/api/households/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaving(false);
+        return setError(data.error || 'Could not join that household.');
+      }
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      setSaving(false);
+      setError('Could not join that household.');
+    }
+  };
+
+  const goDashboard = () => {
     router.push('/dashboard');
+    router.refresh();
   };
 
   return (
@@ -50,7 +85,7 @@ export default function OnboardingForms() {
             <div className="joincode-box" style={{ marginBottom: 16 }}>
               <span className="code">{createdCode}</span>
             </div>
-            <button className="btn primary block" onClick={() => router.push('/dashboard')}>
+            <button className="btn primary block" onClick={goDashboard}>
               Go to dashboard
             </button>
           </div>
@@ -62,8 +97,8 @@ export default function OnboardingForms() {
                 value={name} onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Maple Street Apartment" />
             </div>
-            <button type="submit" className="btn primary block" data-testid="create-household-submit">
-              Create household
+            <button type="submit" className="btn primary block" data-testid="create-household-submit" disabled={saving}>
+              {saving ? 'Creating…' : 'Create household'}
             </button>
           </form>
         )
@@ -75,8 +110,8 @@ export default function OnboardingForms() {
               value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="e.g. MAPLE-4827" style={{ textTransform: 'uppercase' }} />
           </div>
-          <button type="submit" className="btn primary block" data-testid="join-household-submit">
-            Join household
+          <button type="submit" className="btn primary block" data-testid="join-household-submit" disabled={saving}>
+            {saving ? 'Joining…' : 'Join household'}
           </button>
         </form>
       )}

@@ -1,10 +1,14 @@
-import Link from 'next/link';
 import JoinCodeBox from '@/components/JoinCodeBox';
-import { HOUSEHOLD, MEMBERS, CURRENT_USER_ID } from '@/lib/mockData';
+import LogoutButton from '@/components/LogoutButton';
+import { requireSession, loadHouseholdMembers } from '@/lib/session';
 
 export const metadata = { title: 'Settings — SplitMate' };
+export const dynamic = 'force-dynamic';
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const { user, household } = await requireSession();
+  const members = await loadHouseholdMembers(household.id);
+
   return (
     <div data-testid="settings-main">
       <div className="page-head">
@@ -17,8 +21,8 @@ export default function SettingsPage() {
       <section className="section">
         <div className="section-head"><h2>Household</h2></div>
         <div className="card">
-          <div className="kv"><span className="k">Name</span><span className="v">{HOUSEHOLD.name}</span></div>
-          <div className="kv"><span className="k">Members</span><span className="v">{MEMBERS.length}</span></div>
+          <div className="kv"><span className="k">Name</span><span className="v">{household.name}</span></div>
+          <div className="kv"><span className="k">Members</span><span className="v">{members.length}</span></div>
         </div>
       </section>
 
@@ -27,17 +31,17 @@ export default function SettingsPage() {
         <p className="page-sub" style={{ marginBottom: 10 }}>
           Share this code so roommates can join your household.
         </p>
-        <JoinCodeBox code={HOUSEHOLD.joinCode} />
+        <JoinCodeBox code={household.joinCode} />
       </section>
 
       <section className="section">
         <div className="section-head"><h2>Members</h2></div>
         <div className="card">
-          {MEMBERS.map((m) => (
+          {members.map((m) => (
             <div key={m.id} className="member-net">
               <span className="avatar sm" aria-hidden>{m.initials}</span>
               <span className="who">
-                {m.name}{m.id === CURRENT_USER_ID ? ' (you)' : ''}
+                {m.name}{m.id === user.id ? ' (you)' : ''}
                 <div className="meta" style={{ color: 'var(--muted)', fontWeight: 400, fontSize: '0.8rem' }}>{m.email}</div>
               </span>
             </div>
@@ -46,7 +50,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="section">
-        <Link href="/login" className="btn ghost block">Log out</Link>
+        <LogoutButton className="btn ghost block" />
       </section>
     </div>
   );
