@@ -1,8 +1,7 @@
+import { redirect } from 'next/navigation';
+
+// `/` → dashboard for the authenticated app. In the real build this checks the
+// session cookie and sends unauthenticated visitors to /login.
 export default function Home() {
-  return (
-    <main data-testid="home-main">
-      <h1 data-testid="home-title">Colossus Next.js scaffold</h1>
-      <p>Replace this page with the real application UI.</p>
-    </main>
-  );
+  redirect('/dashboard');
 }
