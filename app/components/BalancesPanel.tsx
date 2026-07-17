@@ -1,12 +1,23 @@
 import React from 'react';
-import { fmt, initials, type Balances } from '@/lib/mock';
+import { fmt, initials } from '@/lib/format';
+import type { Balances, MemberInfo } from '@/lib/client';
 import EmptyState from './EmptyState';
 
-function avatarClass(userId: string) {
-  return `avatar sm a${userId.replace('u', '') || '1'}`;
+function nameOf(map: Record<string, MemberInfo>, id: string): string {
+  return map[id]?.name ?? 'Unknown';
 }
 
-export default function BalancesPanel({ balances }: { balances: Balances }) {
+function firstName(map: Record<string, MemberInfo>, id: string): string {
+  return nameOf(map, id).split(' ')[0];
+}
+
+export default function BalancesPanel({
+  balances,
+  memberMap,
+}: {
+  balances: Balances;
+  memberMap: Record<string, MemberInfo>;
+}) {
   const settled = balances.owes.length === 0;
   return (
     <section className="section">
@@ -16,14 +27,15 @@ export default function BalancesPanel({ balances }: { balances: Balances }) {
       </div>
 
       <div className="card list" style={{ marginBottom: 12 }}>
-        {balances.perMember.map((b) => {
+        {balances.net.map((b) => {
+          const member = memberMap[b.userId];
           const label = b.netCents > 0 ? 'gets back' : b.netCents < 0 ? 'owes' : 'settled up';
           const cls = b.netCents > 0 ? 'pos' : b.netCents < 0 ? 'neg' : '';
           return (
-            <div className="balance-row" key={b.user.id}>
-              <span className={avatarClass(b.user.id)} aria-hidden>{initials(b.user.name)}</span>
+            <div className="balance-row" key={b.userId}>
+              <span className={`avatar sm ${member?.color ?? 'a1'}`} aria-hidden>{initials(nameOf(memberMap, b.userId))}</span>
               <div className="row-main">
-                <div className="row-title">{b.user.name}</div>
+                <div className="row-title">{nameOf(memberMap, b.userId)}</div>
                 <div className="row-sub">{label}</div>
               </div>
               <span className={`net ${cls}`}>{b.netCents === 0 ? '$0.00' : fmt(Math.abs(b.netCents))}</span>
@@ -40,9 +52,9 @@ export default function BalancesPanel({ balances }: { balances: Balances }) {
         <div className="card list">
           {balances.owes.map((o, i) => (
             <div className="owe-pill" key={i}>
-              <span className="tag neg">{o.from.name.split(' ')[0]}</span>
+              <span className="tag neg">{firstName(memberMap, o.fromUserId)}</span>
               <span className="muted">owes</span>
-              <span className="tag pos">{o.to.name.split(' ')[0]}</span>
+              <span className="tag pos">{firstName(memberMap, o.toUserId)}</span>
               <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{fmt(o.amountCents)}</span>
             </div>
           ))}

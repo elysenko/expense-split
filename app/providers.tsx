@@ -1,13 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useMemo, useState } from 'react';
-import { users, type User } from '@/lib/mock';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { api, getToken, setToken, clearToken, type AuthUser } from '@/lib/client';
 import AppShell from './components/AppShell';
 
 interface AuthState {
-  user: User;
-  loggedIn: boolean;
-  login: (email: string) => void;
+  user: AuthUser | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -20,22 +21,51 @@ export function useAuth(): AuthState {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Preview starts signed in as the demo ADMIN so guarded screens render.
-  const [user, setUser] = useState<User>(users[0]);
-  const [loggedIn, setLoggedIn] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Restore the session from a stored token on first load.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!getToken()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const me = await api.me();
+        if (active) setUser(me);
+      } catch {
+        clearToken();
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const value = useMemo<AuthState>(
     () => ({
       user,
-      loggedIn,
-      login: (email: string) => {
-        const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-        setUser(found ?? users[0]);
-        setLoggedIn(true);
+      loading,
+      login: async (email, password) => {
+        const res = await api.login(email, password);
+        setToken(res.token);
+        setUser(res.user);
       },
-      logout: () => setLoggedIn(false),
+      signup: async (name, email, password) => {
+        const res = await api.signup(name, email, password);
+        setToken(res.token);
+        setUser(res.user);
+      },
+      logout: () => {
+        clearToken();
+        setUser(null);
+      },
     }),
-    [user, loggedIn],
+    [user, loading],
   );
 
   return (

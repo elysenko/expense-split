@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../providers';
-import { initials } from '@/lib/mock';
+import { initials } from '@/lib/format';
+import { api } from '@/lib/client';
 
 const HomeIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /></svg>
@@ -19,25 +20,56 @@ const GearIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.4-2.6H10l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4L5.6 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1Z" /></svg>
 );
 
-interface NavItem { href: string; label: string; icon: React.ReactNode; adminOnly?: boolean; match: string[]; }
-
-const NAV: NavItem[] = [
-  { href: '/households/h1', label: 'Dashboard', icon: <HomeIcon />, match: ['/households'] },
-  { href: '/history', label: 'History', icon: <ClockIcon />, match: ['/history', '/expenses'] },
-  { href: '/settings', label: 'Household', icon: <HouseIcon />, match: ['/settings'] },
-  { href: '/admin/settings', label: 'Admin', icon: <GearIcon />, adminOnly: true, match: ['/admin'] },
-];
+interface NavItem { href: string; label: string; icon: React.ReactNode; adminOnly?: boolean; match: (path: string) => boolean; }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
   const router = useRouter();
-  const { user, loggedIn, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const [dashboardHref, setDashboardHref] = useState('/');
 
   const bare = pathname === '/login' || pathname === '/signup';
+
+  // Redirect unauthenticated users away from guarded routes once auth resolves.
+  useEffect(() => {
+    if (!loading && !user && !bare) router.replace('/login');
+  }, [loading, user, bare, router]);
+
+  // Point the Dashboard tab at the user's most-recently-active household.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    api
+      .listHouseholds()
+      .then((hs) => {
+        if (active && hs.length > 0) setDashboardHref(`/households/${hs[0].id}`);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   if (bare) return <>{children}</>;
 
+  if (loading || !user) {
+    return (
+      <div className="shell">
+        <main className="content">
+          <div className="card"><div className="empty">Loading…</div></div>
+        </main>
+      </div>
+    );
+  }
+
+  const NAV: NavItem[] = [
+    { href: dashboardHref, label: 'Dashboard', icon: <HomeIcon />, match: (p) => p === '/' || p.startsWith('/households') },
+    { href: '/history', label: 'History', icon: <ClockIcon />, match: (p) => p.startsWith('/history') || p.startsWith('/expenses') },
+    { href: '/settings', label: 'Household', icon: <HouseIcon />, match: (p) => p.startsWith('/settings') },
+    { href: '/admin/settings', label: 'Admin', icon: <GearIcon />, adminOnly: true, match: (p) => p.startsWith('/admin') },
+  ];
+
   const items = NAV.filter((n) => !n.adminOnly || user.role === 'ADMIN');
-  const avatarClass = `avatar sm a${(user.id.replace('u', '') || '1')}`;
 
   return (
     <div className="shell">
@@ -47,12 +79,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span>Splithouse</span>
         </Link>
         <div className="topbar-user">
-          <span className={avatarClass} title={user.name}>{initials(user.name)}</span>
-          {loggedIn ? (
-            <button className="chip-btn" onClick={() => { logout(); router.push('/login'); }}>Log out</button>
-          ) : (
-            <Link href="/login" className="chip-btn">Log in</Link>
-          )}
+          <span className="avatar sm a1" title={user.name}>{initials(user.name)}</span>
+          <button className="chip-btn" onClick={() => { logout(); router.push('/login'); }}>Log out</button>
         </div>
       </header>
 
@@ -60,9 +88,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav className="bottom-nav" aria-label="Primary">
         {items.map((n) => {
-          const active = n.match.some((m) => pathname.startsWith(m));
+          const active = n.match(pathname);
           return (
-            <Link key={n.href} href={n.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
+            <Link key={n.label} href={n.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
               {n.icon}
               <span>{n.label}</span>
             </Link>

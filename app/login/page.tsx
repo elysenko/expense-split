@@ -8,15 +8,24 @@ import { useAuth } from '../providers';
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('alex@maple.test');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password.trim()) return setError('Enter your email and password.');
-    login(email);
-    router.push('/');
+    setError('');
+    setBusy(true);
+    try {
+      await login(email.trim(), password);
+      router.push('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not log in.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -34,15 +43,9 @@ export default function LoginPage() {
           <input id="password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="btn btn-primary btn-block" type="submit" style={{ marginTop: 6 }}>Log in</button>
+        <button className="btn btn-primary btn-block" type="submit" style={{ marginTop: 6 }} disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
         <p className="auth-alt">New here? <Link className="btn-ghost" href="/signup">Create an account</Link></p>
       </form>
-      <div className="demo-box">
-        <strong>Demo logins</strong>
-        <div>Admin: <code>alex@maple.test</code></div>
-        <div>Member: <code>bailey@maple.test</code> · <code>casey@maple.test</code></div>
-        <div>Password: <code>demo1234</code></div>
-      </div>
     </div>
   );
 }

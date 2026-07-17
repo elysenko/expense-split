@@ -1,15 +1,33 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { households, membersOf } from '@/lib/mock';
+import { api, type HouseholdSummary } from '@/lib/client';
 import EmptyState from './components/EmptyState';
 
 export default function Home() {
-  // In the real app the root redirects to the most-recent household or, when
-  // the user belongs to none, shows this onboarding. The preview shows both so
-  // every path is reachable.
+  const [households, setHouseholds] = useState<HouseholdSummary[] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .listHouseholds()
+      .then((hs) => active && setHouseholds(hs))
+      .catch(() => active && setHouseholds([]));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (households === null) {
+    return (
+      <div data-testid="home-main">
+        <div className="card"><div className="empty">Loading…</div></div>
+      </div>
+    );
+  }
+
   const mine = households;
 
   return (
@@ -28,7 +46,7 @@ export default function Home() {
                 <span className="brand-badge" aria-hidden>{h.name[0]}</span>
                 <div className="row-main">
                   <div className="row-title">{h.name}</div>
-                  <div className="row-sub">{membersOf(h).length} members · code {h.joinCode}</div>
+                  <div className="row-sub">code {h.joinCode}</div>
                 </div>
                 <span className="tag info">Open</span>
               </Link>

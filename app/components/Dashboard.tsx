@@ -1,21 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  computeBalances,
-  fmt,
-  householdById,
-  householdExpenses,
-  householdSettlements,
-  membersOf,
-} from '@/lib/mock';
+import { api, buildMemberMap, type Balances, type Expense, type Household, type Member, type MemberInfo } from '@/lib/client';
+import { fmt } from '@/lib/format';
 import BalancesPanel from './BalancesPanel';
 import ExpenseList from './ExpenseList';
 import EmptyState from './EmptyState';
 import AddExpenseModal from './AddExpenseModal';
 import SettleUpModal from './SettleUpModal';
+
+interface DashboardData {
+  household: Household;
+  members: Member[];
+  expenses: Expense[];
+  balances: Balances;
+}
 
 export default function Dashboard({ householdId }: { householdId: string }) {
   const router = useRouter();
@@ -23,9 +24,37 @@ export default function Dashboard({ householdId }: { householdId: string }) {
   const params = useSearchParams();
   const modal = params.get('modal');
 
-  const household = householdById(householdId);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'notfound' | 'error'>('loading');
 
-  if (!household) {
+  const load = useCallback(async () => {
+    try {
+      const [household, members, expenses, balances] = await Promise.all([
+        api.getHousehold(householdId),
+        api.listMembers(householdId),
+        api.listExpenses(householdId),
+        api.getBalances(householdId),
+      ]);
+      setData({ household, members, expenses, balances });
+      setStatus('ready');
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      setStatus(status === 404 || status === 403 ? 'notfound' : 'error');
+    }
+  }, [householdId]);
+
+  useEffect(() => {
+    setStatus('loading');
+    load();
+  }, [load]);
+
+  if (status === 'loading') {
+    return (
+      <div className="card" data-testid="dashboard-main"><div className="empty">Loading…</div></div>
+    );
+  }
+
+  if (status === 'notfound' || !data) {
     return (
       <div className="card" data-testid="dashboard-main">
         <EmptyState emoji="🏠" title="Household not found" subtitle="Pick a household from your settings." action={<Link className="btn btn-primary" href="/settings">Go to households</Link>} />
@@ -33,14 +62,16 @@ export default function Dashboard({ householdId }: { householdId: string }) {
     );
   }
 
-  const members = membersOf(household);
-  const expenses = householdExpenses(household.id);
-  const settlements = householdSettlements(household.id);
-  const balances = computeBalances(household, expenses, settlements);
+  const { household, members, expenses, balances } = data;
+  const memberMap: Record<string, MemberInfo> = buildMemberMap(members);
   const total = expenses.reduce((s, e) => s + e.amountCents, 0);
 
   const openModal = (name: string) => router.push(`${pathname}?modal=${name}`);
   const closeModal = () => router.push(pathname);
+  const afterMutation = async () => {
+    await load();
+    closeModal();
+  };
 
   return (
     <div data-testid="dashboard-main">
@@ -65,20 +96,24 @@ export default function Dashboard({ householdId }: { householdId: string }) {
         <button className="btn" onClick={() => openModal('settle')}>Settle up</button>
       </div>
 
-      <BalancesPanel balances={balances} />
+      <BalancesPanel balances={balances} memberMap={memberMap} />
 
       <section className="section">
         <div className="section-head">
           <h2>Recent expenses</h2>
           <Link className="btn-ghost" href="/history">View all →</Link>
         </div>
-        <ExpenseList expenses={expenses.slice(0, 6)} />
+        <ExpenseList expenses={expenses.slice(0, 6)} memberMap={memberMap} />
       </section>
 
       <button className="fab" onClick={() => openModal('add-expense')} aria-label="Add expense">+ Expense</button>
 
-      {modal === 'add-expense' && <AddExpenseModal members={members} onClose={closeModal} />}
-      {modal === 'settle' && <SettleUpModal members={members} onClose={closeModal} />}
+      {modal === 'add-expense' && (
+        <AddExpenseModal householdId={household.id} members={members} onClose={closeModal} onCreated={afterMutation} />
+      )}
+      {modal === 'settle' && (
+        <SettleUpModal householdId={household.id} members={members} onClose={closeModal} onCreated={afterMutation} />
+      )}
     </div>
   );
 }

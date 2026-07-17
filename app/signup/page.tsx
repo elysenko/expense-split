@@ -7,19 +7,28 @@ import { useAuth } from '../providers';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return setError('Enter your name.');
     if (!email.trim()) return setError('Enter your email.');
     if (password.length < 8) return setError('Password must be at least 8 characters.');
-    login(email);
-    router.push('/');
+    setError('');
+    setBusy(true);
+    try {
+      await signup(name.trim(), email.trim(), password);
+      router.push('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create your account.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -41,7 +50,7 @@ export default function SignupPage() {
           <input id="password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="btn btn-primary btn-block" type="submit" style={{ marginTop: 6 }}>Create account</button>
+        <button className="btn btn-primary btn-block" type="submit" style={{ marginTop: 6 }} disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
         <p className="auth-alt">Already have an account? <Link className="btn-ghost" href="/login">Log in</Link></p>
       </form>
       <div className="demo-box">The first person to sign up becomes the household <strong>admin</strong>; everyone who joins later is a member.</div>

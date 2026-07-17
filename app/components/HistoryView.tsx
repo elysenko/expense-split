@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { households, householdExpenses, membersOf } from '@/lib/mock';
+import { api, buildMemberMap, type Expense, type Member } from '@/lib/client';
 import ExpenseList from './ExpenseList';
-
-const HOUSEHOLD_ID = 'h1';
+import EmptyState from './EmptyState';
 
 export default function HistoryView() {
   const router = useRouter();
@@ -15,8 +15,47 @@ export default function HistoryView() {
   const from = params.get('from') || '';
   const to = params.get('to') || '';
 
-  const household = households.find((h) => h.id === HOUSEHOLD_ID)!;
-  const members = membersOf(household);
+  const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [expenses, setExpenses] = useState<Expense[] | null>(null);
+  const [noHousehold, setNoHousehold] = useState(false);
+
+  // Resolve the user's primary household and its roster once.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const hs = await api.listHouseholds();
+        if (!active) return;
+        if (hs.length === 0) {
+          setNoHousehold(true);
+          return;
+        }
+        const id = hs[0].id;
+        setHouseholdId(id);
+        setMembers(await api.listMembers(id));
+      } catch {
+        if (active) setNoHousehold(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Filters are driven by the URL: refetch from the API whenever they change.
+  useEffect(() => {
+    if (!householdId) return;
+    let active = true;
+    setExpenses(null);
+    api
+      .listExpenses(householdId, { member: member || undefined, from: from || undefined, to: to || undefined })
+      .then((rows) => active && setExpenses(rows))
+      .catch(() => active && setExpenses([]));
+    return () => {
+      active = false;
+    };
+  }, [householdId, member, from, to]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -25,12 +64,20 @@ export default function HistoryView() {
     router.replace(`/history${next.toString() ? `?${next.toString()}` : ''}`);
   }
 
-  let expenses = householdExpenses(HOUSEHOLD_ID);
-  if (member) expenses = expenses.filter((e) => e.payerId === member || e.participantIds.includes(member));
-  if (from) expenses = expenses.filter((e) => e.createdAt.slice(0, 10) >= from);
-  if (to) expenses = expenses.filter((e) => e.createdAt.slice(0, 10) <= to);
+  if (noHousehold) {
+    return (
+      <div>
+        <div className="section"><h1 style={{ fontSize: 22 }}>History</h1></div>
+        <div className="card">
+          <EmptyState emoji="🏡" title="No household yet" subtitle="Create or join a household to track expenses." action={<Link className="btn btn-primary" href="/settings">Go to households</Link>} />
+        </div>
+      </div>
+    );
+  }
 
   const active = member || from || to;
+  const memberMap = buildMemberMap(members);
+  const count = expenses?.length ?? 0;
 
   return (
     <div>
@@ -45,7 +92,7 @@ export default function HistoryView() {
             <label htmlFor="f-member">Member</label>
             <select id="f-member" className="select" value={member} onChange={(e) => setParam('member', e.target.value)}>
               <option value="">All members</option>
-              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+              {members.map((m) => (<option key={m.userId} value={m.userId}>{m.name}</option>))}
             </select>
           </div>
           <div className="field" style={{ margin: 0 }}>
@@ -62,8 +109,14 @@ export default function HistoryView() {
         )}
       </div>
 
-      <p className="muted small" style={{ marginBottom: 8 }}>{expenses.length} expense{expenses.length === 1 ? '' : 's'}</p>
-      <ExpenseList expenses={expenses} />
+      {expenses === null ? (
+        <div className="card"><div className="empty">Loading…</div></div>
+      ) : (
+        <>
+          <p className="muted small" style={{ marginBottom: 8 }}>{count} expense{count === 1 ? '' : 's'}</p>
+          <ExpenseList expenses={expenses} memberMap={memberMap} />
+        </>
+      )}
     </div>
   );
 }
