@@ -19,4 +19,94 @@ model User {
   role      Role     @default(USER)
   password  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships     Membership[]
+  paidExpenses    Expense[]      @relation("ExpensePayer")
+  shares          ExpenseShare[]
+  settlementsFrom Settlement[]   @relation("SettlementFrom")
+  settlementsTo   Settlement[]   @relation("SettlementTo")
+}
+
+model Household {
+  id        String   @id @default(uuid())
+  name      String
+  joinCode  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  expenses    Expense[]
+  settlements Settlement[]
+}
+
+model Membership {
+  id          String   @id @default(uuid())
+  userId      String
+  householdId String
+  joinedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, householdId])
+  @@index([householdId])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  householdId String
+  description String
+  amountCents Int
+  payerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  payer     User           @relation("ExpensePayer", fields: [payerId], references: [id])
+  shares    ExpenseShare[]
+
+  @@index([householdId])
+  @@index([payerId])
+}
+
+model ExpenseShare {
+  id         String   @id @default(uuid())
+  expenseId  String
+  userId     String
+  shareCents Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+  @@index([userId])
+}
+
+model Settlement {
+  id          String   @id @default(uuid())
+  householdId String
+  fromUserId  String
+  toUserId    String
+  amountCents Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  fromUser  User      @relation("SettlementFrom", fields: [fromUserId], references: [id])
+  toUser    User      @relation("SettlementTo", fields: [toUserId], references: [id])
+
+  @@index([householdId])
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

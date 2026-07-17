@@ -1,5 +1,5 @@
 {
   "ready_testid": "home-main",
-  "expect_text": [],
+  "expect_text": ["Splithouse", "Your households"],
   "reject_signatures": ["Colossus Next.js scaffold", "Replace this page with the real application UI."]
 }
