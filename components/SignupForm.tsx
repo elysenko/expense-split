@@ -9,8 +9,9 @@ export default function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password) {
       setError('Fill in every field to create your account.');
@@ -20,9 +21,25 @@ export default function SignupForm() {
       setError('Use a password with at least 6 characters.');
       return;
     }
-    // Mockup: real app POSTs to /api/auth/signup, then redirects new users to
-    // /onboarding to create or join a household.
-    router.push('/onboarding');
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaving(false);
+        return setError(data.error || 'Could not create your account.');
+      }
+      router.push(data.redirect || '/onboarding');
+      router.refresh();
+    } catch {
+      setSaving(false);
+      setError('Could not create your account.');
+    }
   };
 
   return (
@@ -44,8 +61,8 @@ export default function SignupForm() {
           data-testid="signup-password" value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 6 characters" />
       </div>
-      <button type="submit" className="btn primary block" data-testid="signup-submit">
-        Create account
+      <button type="submit" className="btn primary block" data-testid="signup-submit" disabled={saving}>
+        {saving ? 'Creating…' : 'Create account'}
       </button>
     </form>
   );

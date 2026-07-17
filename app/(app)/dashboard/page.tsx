@@ -3,14 +3,12 @@ import ExpenseList from '@/components/ExpenseList';
 import BalancesSection from '@/components/BalancesSection';
 import AddExpenseModal from '@/components/AddExpenseModal';
 import SettleUpModal from '@/components/SettleUpModal';
-import {
-  EXPENSES,
-  SETTLEMENTS,
-  MEMBERS,
-  computeBalances,
-} from '@/lib/mockData';
+import { requireSession, loadHouseholdMembers } from '@/lib/session';
+import { loadExpenses, loadSettlements } from '@/lib/queries';
+import { computeBalances } from '@/lib/balances';
 
 export const metadata = { title: 'Dashboard — SplitMate' };
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage({
   searchParams,
@@ -18,10 +16,16 @@ export default async function DashboardPage({
   searchParams: Promise<{ modal?: string }>;
 }) {
   const { modal } = await searchParams;
-  const recent = [...EXPENSES]
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .slice(0, 5);
-  const balances = computeBalances(EXPENSES, SETTLEMENTS, MEMBERS);
+  const { user, household } = await requireSession();
+
+  const [members, expenses, settlements] = await Promise.all([
+    loadHouseholdMembers(household.id),
+    loadExpenses(household.id),
+    loadSettlements(household.id),
+  ]);
+
+  const recent = expenses.slice(0, 5);
+  const balances = computeBalances(expenses, settlements, members);
 
   return (
     <div data-testid="dashboard-main">
@@ -41,18 +45,18 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <BalancesSection balances={balances} members={MEMBERS} />
+      <BalancesSection balances={balances} members={members} currentUserId={user.id} />
 
       <section className="section">
         <div className="section-head">
           <h2>Recent expenses</h2>
           <Link href="/history">View all</Link>
         </div>
-        <ExpenseList expenses={recent} />
+        <ExpenseList expenses={recent} members={members} />
       </section>
 
-      {modal === 'add-expense' && <AddExpenseModal />}
-      {modal === 'settle' && <SettleUpModal />}
+      {modal === 'add-expense' && <AddExpenseModal members={members} currentUserId={user.id} />}
+      {modal === 'settle' && <SettleUpModal members={members} currentUserId={user.id} />}
     </div>
   );
 }

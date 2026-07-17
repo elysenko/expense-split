@@ -1,9 +1,12 @@
 import { Suspense } from 'react';
 import HistoryFilters from '@/components/HistoryFilters';
 import ExpenseList from '@/components/ExpenseList';
-import { EXPENSES, MEMBERS, memberName } from '@/lib/mockData';
+import { requireSession, loadHouseholdMembers } from '@/lib/session';
+import { loadExpenses } from '@/lib/queries';
+import { memberName } from '@/lib/view';
 
 export const metadata = { title: 'History — SplitMate' };
+export const dynamic = 'force-dynamic';
 
 export default async function HistoryPage({
   searchParams,
@@ -11,17 +14,16 @@ export default async function HistoryPage({
   searchParams: Promise<{ member?: string; from?: string; to?: string }>;
 }) {
   const { member, from, to } = await searchParams;
+  const { household } = await requireSession();
 
-  // Server-side filtering driven entirely by the URL query string.
-  const filtered = EXPENSES.filter((e) => {
-    if (member && e.payerId !== member) return false;
-    if (from && e.createdAt < from) return false;
-    if (to && e.createdAt > to) return false;
-    return true;
-  }).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  // Filtering is driven entirely by the URL query string, applied at the DB.
+  const [members, filtered] = await Promise.all([
+    loadHouseholdMembers(household.id),
+    loadExpenses(household.id, { member, from, to }),
+  ]);
 
   const chips: string[] = [];
-  if (member) chips.push(`Paid by ${memberName(member)}`);
+  if (member) chips.push(`Paid by ${memberName(members, member)}`);
   if (from) chips.push(`From ${from}`);
   if (to) chips.push(`To ${to}`);
 
@@ -35,7 +37,7 @@ export default async function HistoryPage({
       </div>
 
       <Suspense fallback={null}>
-        <HistoryFilters />
+        <HistoryFilters members={members} />
       </Suspense>
 
       {chips.length > 0 && (
@@ -49,7 +51,7 @@ export default async function HistoryPage({
       <p className="page-sub" style={{ marginBottom: 10 }}>
         {filtered.length} expense{filtered.length === 1 ? '' : 's'}
       </p>
-      <ExpenseList expenses={filtered} emptyTestId="history-empty" />
+      <ExpenseList expenses={filtered} members={members} emptyTestId="history-empty" />
     </div>
   );
 }

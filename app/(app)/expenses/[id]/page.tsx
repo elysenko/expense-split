@@ -1,17 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  EXPENSES,
-  MEMBERS,
-  equalSplit,
-  formatCents,
-  formatDate,
-  memberById,
-  memberName,
-  CURRENT_USER_ID,
-} from '@/lib/mockData';
+import { prisma } from '@/lib/prisma';
+import { requireSession, loadHouseholdMembers } from '@/lib/session';
+import { formatCents, formatDate, memberById, memberName } from '@/lib/view';
 
 export const metadata = { title: 'Expense — SplitMate' };
+export const dynamic = 'force-dynamic';
 
 export default async function ExpenseDetailPage({
   params,
@@ -19,11 +13,18 @@ export default async function ExpenseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const expense = EXPENSES.find((e) => e.id === id);
+  const { user, household } = await requireSession();
+
+  const expense = await prisma.expense.findFirst({
+    where: { id, householdId: household.id },
+    include: { shares: true },
+  });
   if (!expense) notFound();
 
-  const shares = equalSplit(expense.amountCents, expense.memberIds);
-  const payer = memberById(expense.payerId);
+  const members = await loadHouseholdMembers(household.id);
+  const shares: Record<string, number> = {};
+  for (const s of expense.shares) shares[s.userId] = s.shareCents;
+  const memberIds = expense.shares.map((s) => s.userId);
 
   return (
     <div data-testid="expense-detail-main">
@@ -37,20 +38,20 @@ export default async function ExpenseDetailPage({
           {formatCents(expense.amountCents)}
         </div>
         <div className="page-sub">
-          Paid by <b>{memberName(expense.payerId)}</b> · {formatDate(expense.createdAt)}
+          Paid by <b>{memberName(members, expense.payerId)}</b> · {formatDate(expense.createdAt.toISOString())}
         </div>
       </section>
 
       <section className="section">
         <div className="section-head"><h2>Split breakdown</h2></div>
         <div className="card">
-          {expense.memberIds.map((mid) => {
-            const m = memberById(mid);
+          {memberIds.map((mid) => {
+            const m = memberById(members, mid);
             return (
               <div key={mid} className="member-net">
                 <span className="avatar sm" aria-hidden>{m?.initials ?? '?'}</span>
                 <span className="who">
-                  {m?.name}{mid === CURRENT_USER_ID ? ' (you)' : ''}
+                  {m?.name}{mid === user.id ? ' (you)' : ''}
                   {mid === expense.payerId && <span className="badge ok" style={{ marginLeft: 8 }}>payer</span>}
                 </span>
                 <span className="amt">{formatCents(shares[mid])}</span>
