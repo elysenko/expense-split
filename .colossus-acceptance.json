@@ -1,5 +1,5 @@
 {
-  "ready_testid": "home-main",
-  "expect_text": [],
+  "ready_testid": "dashboard-main",
+  "expect_text": ["Balances"],
   "reject_signatures": ["Colossus Next.js scaffold", "Replace this page with the real application UI."]
 }
