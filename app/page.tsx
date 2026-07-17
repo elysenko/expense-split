@@ -3,13 +3,19 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, type HouseholdSummary } from '@/lib/client';
+import { useAuth } from './providers';
 import EmptyState from './components/EmptyState';
 
 export default function Home() {
+  const { user } = useAuth();
   const [households, setHouseholds] = useState<HouseholdSummary[] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
+    if (!user) {
+      setHouseholds(null);
+      return;
+    }
     let active = true;
     api
       .listHouseholds()
@@ -18,7 +24,35 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user]);
+
+  // Public landing page for logged-out visitors. This is the deployed root and
+  // carries the `home-main` readiness landmark that the post-deploy render gate
+  // waits for — so it must render without a session.
+  if (!user) {
+    return (
+      <div data-testid="home-main">
+        <section className="section">
+          <h1 style={{ fontSize: 28 }}>Splithouse</h1>
+          <p className="muted">
+            Split rent, bills and groceries with your roommates — track who paid,
+            who owes whom, and settle up in a tap.
+          </p>
+        </section>
+        <div className="card">
+          <EmptyState
+            emoji="🏠"
+            title="Share expenses with your housemates"
+            subtitle="Create a household, add expenses, and watch everyone's balance update instantly."
+          />
+          <div className="grid-2 section" style={{ marginTop: 12 }}>
+            <Link className="btn btn-primary" href="/login">Log in</Link>
+            <Link className="btn" href="/signup">Create account</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (households === null) {
     return (

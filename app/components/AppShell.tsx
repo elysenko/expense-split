@@ -29,11 +29,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [dashboardHref, setDashboardHref] = useState('/');
 
   const bare = pathname === '/login' || pathname === '/signup';
+  const isHome = pathname === '/';
+  // Public routes render without a session: login/signup are bare, and `/` is a
+  // public landing page so the post-deploy render gate can reach `home-main`.
+  const publicRoute = bare || isHome;
 
   // Redirect unauthenticated users away from guarded routes once auth resolves.
   useEffect(() => {
-    if (!loading && !user && !bare) router.replace('/login');
-  }, [loading, user, bare, router]);
+    if (!loading && !user && !publicRoute) router.replace('/login');
+  }, [loading, user, publicRoute, router]);
 
   // Point the Dashboard tab at the user's most-recently-active household.
   useEffect(() => {
@@ -51,6 +55,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   if (bare) return <>{children}</>;
+
+  // Logged-out visitor on the public landing (`/`): render the page with a
+  // minimal header (Log in CTA) and no authed bottom-nav.
+  if (!loading && !user && isHome) {
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <Link href="/" className="brand">
+            <span className="brand-badge">S</span>
+            <span>Splithouse</span>
+          </Link>
+          <Link href="/login" className="chip-btn">Log in</Link>
+        </header>
+        <main className="content">{children}</main>
+      </div>
+    );
+  }
 
   if (loading || !user) {
     return (
